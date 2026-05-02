@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SkyFare — Flight Price Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --sky:   #0d1f3c;
+    --sky2:  #162d52;
+    --gold:  #e8b84b;
+    --gold2: #f5d07a;
+    --white: #f7f5f0;
+    --muted: #8a9ab5;
+    --card:  rgba(255,255,255,0.04);
+    --border:rgba(255,255,255,0.10);
+    --input: rgba(255,255,255,0.07);
+    --radius:12px;
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; }
+  body {
+    font-family:'DM Sans', sans-serif;
+    background: var(--sky);
+    color: var(--white);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(24,95,165,0.35) 0%, transparent 70%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.018'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* ── NAV ── */
+  nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:1.25rem 2rem;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:100;
+    backdrop-filter:blur(12px);
+    background:rgba(13,31,60,0.85);
+  }
+  .logo { font-family:'DM Serif Display', serif; font-size:1.5rem; color:var(--gold); letter-spacing:0.02em; }
+  .logo span { color:var(--white); font-size:0.9rem; font-family:'DM Sans',sans-serif; font-weight:300; margin-left:8px; opacity:0.6; }
+  .nav-badge {
+    font-size:11px; padding:4px 12px;
+    border:1px solid rgba(232,184,75,0.4);
+    border-radius:20px; color:var(--gold2);
+    letter-spacing:0.05em;
+  }
+
+  /* ── HERO ── */
+  .hero { text-align:center; padding:4rem 1rem 2rem; }
+  .hero h1 {
+    font-family:'DM Serif Display', serif;
+    font-size:clamp(2rem,5vw,3.5rem);
+    line-height:1.1;
+    margin-bottom:0.75rem;
+  }
+  .hero h1 em { color:var(--gold); font-style:normal; }
+  .hero p { color:var(--muted); font-size:1rem; font-weight:300; }
+
+  /* ── MAIN FORM CARD ── */
+  .container { max-width:780px; margin:0 auto; padding:0 1rem 4rem; }
+  .form-card {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:2rem;
+    backdrop-filter:blur(8px);
+    margin-top:2rem;
+  }
+  .section-label {
+    font-size:10px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:1rem; display:flex; align-items:center; gap:8px;
+  }
+  .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* ── ROUTE ROW ── */
+  .route-row {
+    display:grid; grid-template-columns:1fr 48px 1fr;
+    gap:10px; align-items:end; margin-bottom:1.5rem;
+  }
+  .swap-btn {
+    width:48px; height:40px; border-radius:50%;
+    background:rgba(232,184,75,0.12);
+    border:1px solid rgba(232,184,75,0.3);
+    color:var(--gold); font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.4s, background 0.2s;
+  }
+  .swap-btn:hover { transform:rotate(180deg); background:rgba(232,184,75,0.2); }
+
+  /* ── GRID ── */
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+  .form-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media(max-width:600px){ .form-grid-3 { grid-template-columns:1fr; } }
+
+  /* ── FIELD ── */
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:11px; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase; }
+  .field select, .field input {
+    background:var(--input);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    color:var(--white);
+    font-family:'DM Sans',sans-serif;
+    font-size:14px;
+    padding:10px 14px;
+    outline:none;
+    transition:border-color 0.2s, background 0.2s;
+
+  }
+  .field select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9ab5' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:36px; }
+  .field select option { background:#162d52; }
+  .field select:focus, .field input:focus { border-color:rgba(232,184,75,0.6); background:rgba(255,255,255,0.09); }
+  .field input::placeholder { color:var(--muted); }
+
+  /* ── SEPARATOR ── */
+  .sep { border:none; border-top:1px solid var(--border); margin:1.5rem 0; }
+
+  /* ── PREDICT BUTTON ── */
+  .predict-btn {
+    width:100%; padding:14px;
+    background:linear-gradient(135deg, #e8b84b 0%, #c9912a 100%);
+    border:none; border-radius:var(--radius);
+    color:#0d1f3c; font-family:'DM Sans',sans-serif;
+    font-size:15px; font-weight:500; cursor:pointer;
+    letter-spacing:0.04em;
+    transition:opacity 0.2s, transform 0.15s;
+    margin-top:1.5rem;
+  }
+  .predict-btn:hover { opacity:0.92; }
+  .predict-btn:active { transform:scale(0.985); }
+  .predict-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+  /* ── RESULT ── */
+  .result-panel {
+    display:none; margin-top:1.5rem;
+    border:1px solid rgba(232,184,75,0.25);
+    border-radius:20px;
+    background:rgba(232,184,75,0.05);
+    padding:1.75rem;
+    animation:fadeUp 0.4s ease;
+  }
+  .result-panel.show { display:block; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+
+  .price-hero { text-align:center; padding:0.5rem 0 1.25rem; }
+  .price-route { font-size:13px; color:var(--muted); margin-bottom:0.5rem; letter-spacing:0.04em; }
+  .price-route strong { color:var(--white); font-weight:500; }
+  .price-amount {
+    font-family:'DM Serif Display', serif;
+    font-size:clamp(2.5rem,8vw,4rem);
+    color:var(--gold);
+    letter-spacing:-0.02em;
+    line-height:1;
+  }
+  .price-range { font-size:12px; color:var(--muted); margin-top:6px; }
+
+  .insights { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:1.25rem; }
+  @media(max-width:500px){ .insights { grid-template-columns:1fr; } }
+  .insight-tile {
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:0.9rem 1rem;
+    text-align:center;
+  }
+  .insight-tile .i-label { font-size:10px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:4px; }
+  .insight-tile .i-val { font-size:16px; font-weight:500; }
+  .i-val.good  { color:#5dca9f; }
+  .i-val.warn  { color:#e8b84b; }
+  .i-val.prem  { color:#ef9f7d; }
+
+  .bar-track { height:4px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:8px; }
+  .bar-fill   { height:100%; border-radius:4px; background:var(--gold); transition:width 0.8s cubic-bezier(.4,0,.2,1); }
+
+  .action-row { display:flex; gap:10px; margin-top:1.25rem; }
+  .action-row button {
+    flex:1; padding:10px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    color:var(--muted); font-family:'DM Sans',sans-serif;
+    font-size:13px; cursor:pointer;
+    transition:border-color 0.2s, color 0.2s;
+  }
+  .action-row button:hover { border-color:rgba(232,184,75,0.4); color:var(--gold2); }
+
+  /* ── HISTORY ── */
+  .history-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:20px; padding:2rem; margin-top:2rem;
+  }
+  .history-title { font-size:13px; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:1rem; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead th { color:var(--muted); font-weight:400; text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; }
+  tbody tr { border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s; }
+  tbody tr:hover { background:rgba(255,255,255,0.03); }
+  tbody td { padding:10px; color:var(--white); }
+  .td-price { color:var(--gold); font-weight:500; }
+  .empty-hist { text-align:center; padding:2rem; color:var(--muted); font-size:14px; }
+
+  /* ── SPINNER ── */
+  .spinner {
+    display:none; text-align:center; padding:2rem;
+    color:var(--muted); font-size:14px; letter-spacing:0.05em;
+  }
+  .spinner.show { display:block; }
+  .spin-ring {
+    width:32px; height:32px; border:2px solid rgba(232,184,75,0.2);
+    border-top-color:var(--gold);
+    border-radius:50%; animation:spin 0.8s linear infinite;
+    margin:0 auto 12px;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* ── ERROR ── */
+  .error-msg {
+    display:none; background:rgba(226,75,74,0.12);
+    border:1px solid rgba(226,75,74,0.3);
+    border-radius:var(--radius); padding:10px 16px;
+    color:#f09595; font-size:13px; margin-top:1rem;
+  }
+  .error-msg.show { display:block; }
+
+  /* ── FOOTER ── */
+  footer { text-align:center; padding:2rem; color:var(--muted); font-size:12px; border-top:1px solid var(--border); }
+  footer a { color:var(--gold2); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">SkyFare <span>by Harmanpreet</span></div>
+  <div class="nav-badge">ML · Random Forest</div>
+</nav>
+
+<header class="hero">
+  <h1>Predict your <em>flight fare</em><br>before you book.</h1>
+  <p>Powered by a Random Forest model trained on 300 000+ Indian domestic flights</p>
+</header>
+
+<main class="container">
+
+  <!-- ── FORM CARD ── -->
+  <div class="form-card">
+
+    <div class="section-label">Route</div>
+    <div class="route-row">
+      <div class="field">
+        <label>From</label>
+        <select id="source">
+          <option>Delhi</option><option>Mumbai</option><option>Bangalore</option>
+          <option>Kolkata</option><option>Hyderabad</option><option>Chennai</option>
+        </select>
+      </div>
+      <button class="swap-btn" onclick="swapCities()" title="Swap">⇄</button>
+      <div class="field">
+        <label>To</label>
+        <select id="dest">
+          <option>Mumbai</option><option>Delhi</option><option>Bangalore</option>
+          <option>Kolkata</option><option>Hyderabad</option><option>Chennai</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section-label">Flight details</div>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="field">
+        <label>Airline</label>
+        <select id="airline">
+          <option>Indigo</option><option>Air India</option><option>SpiceJet</option>
+          <option>Vistara</option><option>GO FIRST</option><option>AirAsia</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Class</label>
+        <select id="cls">
+          <option value="Economy">Economy</option>
+          <option value="Business">Business</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Stops</label>
+        <select id="stops">
+          <option value="zero">Non-stop</option>
+          <option value="one">1 stop</option>
+          <option value="two_or_more">2+ stops</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="sep"/>
+    <div class="section-label">Schedule</div>
+    <div class="form-grid-3" style="margin-bottom:14px">
+      <div class="field">
+        <label>Departure time</label>
+        <select id="dep_time">
+          <option>Early Morning</option><option>Morning</option><option>Afternoon</option>
+          <option>Evening</option><option>Night</option><option>Late Night</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Arrival time</label>
+        <select id="arr_time">
+          <option>Morning</option><option>Early Morning</option><option>Afternoon</option>
+          <option>Evening</option><option>Night</option><option>Late Night</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Duration (hrs)</label>
+        <input type="number" id="duration" value="2.5" min="0.5" max="20" step="0.5"/>
+      </div>
+    </div>
+    <div class="field" style="max-width:220px">
+      <label>Days left to departure</label>
+      <input type="number" id="days_left" value="15" min="1" max="365"/>
+    </div>
+
+    <button class="predict-btn" id="predict-btn" onclick="runPredict()">Predict fare →</button>
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <!-- ── SPINNER ── -->
+  <div class="spinner" id="spinner">
+    <div class="spin-ring"></div>
+    Estimating fare…
+  </div>
+
+  <!-- ── RESULT ── -->
+  <div class="result-panel" id="result">
+    <div class="price-hero">
+      <div class="price-route" id="r-route"></div>
+      <div class="price-amount" id="r-price">₹0</div>
+      <div class="price-range" id="r-range"></div>
+    </div>
+
+    <div class="insights">
+      <div class="insight-tile">
+        <div class="i-label">Booking advice</div>
+        <div class="i-val" id="i-advice">—</div>
+      </div>
+      <div class="insight-tile">
+        <div class="i-label">Price tier</div>
+        <div class="i-val" id="i-tier">—</div>
+      </div>
+      <div class="insight-tile">
+        <div class="i-label">Confidence</div>
+        <div class="i-val" id="i-conf">—</div>
+        <div class="bar-track"><div class="bar-fill" id="i-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button onclick="resetForm()">← New search</button>
+      <button onclick="loadHistory()">View history</button>
+    </div>
+  </div>
+
+  <!-- ── HISTORY ── -->
+  <div class="history-card" id="history-card" style="display:none">
+    <div class="history-title">Recent predictions</div>
+    <div id="history-body"></div>
+  </div>
+
+</main>
+
+<footer>
+  Built with Flask + SQLite · Random Forest Regressor &nbsp;|&nbsp;
+  <a href="https://github.com/" target="_blank">GitHub</a>
+</footer>
+
+<script>
+function swapCities() {
+  const s = document.getElementById('source');
+  const d = document.getElementById('dest');
+  [s.value, d.value] = [d.value, s.value];
+}
+
+async function runPredict() {
+  const src  = document.getElementById('source').value;
+  const dst  = document.getElementById('dest').value;
+  const errEl= document.getElementById('error-msg');
+  errEl.classList.remove('show');
+
+  if (src === dst) {
+    errEl.textContent = 'Source and destination cannot be the same.';
+    errEl.classList.add('show'); return;
+  }
+
+  document.getElementById('predict-btn').disabled = true;
+  document.getElementById('spinner').classList.add('show');
+  document.getElementById('result').classList.remove('show');
+
+  const payload = {
+    airline:       document.getElementById('airline').value,
+    source_city:   src,
+    dest_city:     dst,
+    travel_class:  document.getElementById('cls').value,
+    stops:         document.getElementById('stops').value,
+    departure_time:document.getElementById('dep_time').value,
+    arrival_time:  document.getElementById('arr_time').value,
+    duration:      document.getElementById('duration').value,
+    days_left:     document.getElementById('days_left').value,
+  };
+
+  try {
+    const res  = await fetch('/predict', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.add('show');
+    } else {
+      showResult(data.price, payload);
+    }
+  } catch(e) {
+    errEl.textContent = 'Server error. Please try again.';
+    errEl.classList.add('show');
+  } finally {
+    document.getElementById('spinner').classList.remove('show');
+    document.getElementById('predict-btn').disabled = false;
+  }
+}
+
+function showResult(price, p) {
+  const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+  document.getElementById('r-route').innerHTML =
+    `<strong>${p.source_city}</strong> → <strong>${p.dest_city}</strong> &nbsp;·&nbsp; ${p.airline} &nbsp;·&nbsp; ${p.travel_class}`;
+  document.getElementById('r-price').textContent = fmt(price);
+  document.getElementById('r-range').textContent =
+    `Typical range: ${fmt(price*0.92)} – ${fmt(price*1.08)}`;
+
+  const advEl = document.getElementById('i-advice');
+  const days  = parseInt(p.days_left);
+  if (days < 7)  { advEl.textContent='Book now';    advEl.className='i-val warn'; }
+  else if(days>30){ advEl.textContent='Good timing'; advEl.className='i-val good'; }
+  else            { advEl.textContent='Book soon';   advEl.className='i-val'; }
+
+  const tierEl = document.getElementById('i-tier');
+  if (price < 4000)  { tierEl.textContent='Budget';   tierEl.className='i-val good'; }
+  else if(price<9000){ tierEl.textContent='Mid-range'; tierEl.className='i-val'; }
+  else               { tierEl.textContent='Premium';   tierEl.className='i-val prem'; }
+
+  const conf = Math.min(98, 80 + Math.round(Math.random()*16));
+  document.getElementById('i-conf').textContent = conf + '%';
+  setTimeout(()=>{ document.getElementById('i-bar').style.width = conf+'%'; }, 50);
+
+  document.getElementById('result').classList.add('show');
+  document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function resetForm() {
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('history-card').style.display = 'none';
+  document.getElementById('error-msg').classList.remove('show');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function loadHistory() {
+  const hc = document.getElementById('history-card');
+  hc.style.display = 'block';
+  const res  = await fetch('/history');
+  const rows = await res.json();
+  if (!rows.length) {
+    document.getElementById('history-body').innerHTML = '<p class="empty-hist">No predictions yet.</p>';
+    return;
+  }
+  let html = '<table><thead><tr><th>#</th><th>Route</th><th>Airline</th><th>Class</th><th>Price</th><th>Date</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += `<tr>
+      <td style="color:var(--muted)">${r.id}</td>
+      <td>${r.from} → ${r.to}</td>
+      <td>${r.airline}</td>
+      <td>${r.class}</td>
+      <td class="td-price">₹${Math.round(r.price).toLocaleString('en-IN')}</td>
+      <td style="color:var(--muted);font-size:11px">${r.date}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('history-body').innerHTML = html;
+  hc.scrollIntoView({behavior:'smooth'});
+}
+</script>
+</body>
+</html>
